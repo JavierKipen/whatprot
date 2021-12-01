@@ -21,11 +21,12 @@
 #include "hmm/precomputations/radiometry-precomputations.h"
 #include "hmm/precomputations/universal-precomputations.h"
 #include "hmm/state-vector/stuck-dye-state-vector.h"
-#include "hmm/step/step.h"
 #include "hmm/step/stuck-dye-emission.h"
+#include "hmm/step/stuck-dye-step.h"
 #include "hmm/step/stuck-dye-transition.h"
 #include "parameterization/fit/sequencing-model-fitter.h"
 #include "parameterization/model/sequencing-model.h"
+#include "parameterization/settings/sequencing-settings.h"
 
 namespace {
 using boost::unit_test::tolerance;
@@ -50,10 +51,12 @@ BOOST_AUTO_TEST_CASE(constructor_test, *tolerance(TOL)) {
         seq_model.channel_models[i]->p_bleach = 0.03;
         seq_model.channel_models[i]->p_dud = 0.04;
         seq_model.channel_models[i]->mu = log(1.0);
-        seq_model.channel_models[i]->sigma = 0.05;
+        seq_model.channel_models[i]->sig = 0.05;
         seq_model.channel_models[i]->stuck_dye_ratio = 0.5;
         seq_model.channel_models[i]->p_stuck_dye_loss = 0.08;
     }
+    SequencingSettings seq_settings;
+    seq_settings.dist_cutoff = 3.0;
     int max_num_dyes = 3;
     UniversalPrecomputations universal_precomputations(seq_model, num_channels);
     universal_precomputations.set_max_num_dyes(max_num_dyes);
@@ -68,7 +71,7 @@ BOOST_AUTO_TEST_CASE(constructor_test, *tolerance(TOL)) {
     r(3, 0) = 1.0;
     r(3, 1) = 1.0;
     RadiometryPrecomputations radiometry_precomputations(
-            r, seq_model, max_num_dyes);
+            r, seq_model, seq_settings, max_num_dyes);
     int channel = 0;
     StuckDyeHMM hmm(num_timesteps,
                     num_channels,
@@ -76,27 +79,20 @@ BOOST_AUTO_TEST_CASE(constructor_test, *tolerance(TOL)) {
                     radiometry_precomputations,
                     universal_precomputations);
     BOOST_ASSERT(hmm.steps.size() == 2 * num_timesteps - 1);
-    vector<const Step<StuckDyeStateVector>*>::iterator step = hmm.steps.begin();
-    BOOST_TEST(*step
-               == &radiometry_precomputations.stuck_dye_emissions[channel]);
+    vector<StuckDyeStep*>::iterator step = hmm.steps.begin();
+    BOOST_TEST(typeid(**step).name() == typeid(StuckDyeEmission).name());
     step++;
-    BOOST_TEST(*step
-               == &universal_precomputations.stuck_dye_transitions[channel]);
+    BOOST_TEST(typeid(**step).name() == typeid(StuckDyeTransition).name());
     step++;
-    BOOST_TEST(*step
-               == &radiometry_precomputations.stuck_dye_emissions[channel]);
+    BOOST_TEST(typeid(**step).name() == typeid(StuckDyeEmission).name());
     step++;
-    BOOST_TEST(*step
-               == &universal_precomputations.stuck_dye_transitions[channel]);
+    BOOST_TEST(typeid(**step).name() == typeid(StuckDyeTransition).name());
     step++;
-    BOOST_TEST(*step
-               == &radiometry_precomputations.stuck_dye_emissions[channel]);
+    BOOST_TEST(typeid(**step).name() == typeid(StuckDyeEmission).name());
     step++;
-    BOOST_TEST(*step
-               == &universal_precomputations.stuck_dye_transitions[channel]);
+    BOOST_TEST(typeid(**step).name() == typeid(StuckDyeTransition).name());
     step++;
-    BOOST_TEST(*step
-               == &radiometry_precomputations.stuck_dye_emissions[channel]);
+    BOOST_TEST(typeid(**step).name() == typeid(StuckDyeEmission).name());
 }
 
 BOOST_AUTO_TEST_CASE(probability_more_involved_test, *tolerance(TOL)) {
@@ -110,10 +106,12 @@ BOOST_AUTO_TEST_CASE(probability_more_involved_test, *tolerance(TOL)) {
         seq_model.channel_models[i]->p_dud = 0.04;
         seq_model.channel_models[i]->bg_sigma = 0.00667;
         seq_model.channel_models[i]->mu = 1.0;
-        seq_model.channel_models[i]->sigma = 0.05;
+        seq_model.channel_models[i]->sig = 0.05;
         seq_model.channel_models[i]->stuck_dye_ratio = 0.5;
         seq_model.channel_models[i]->p_stuck_dye_loss = 0.08;
     }
+    SequencingSettings seq_settings;
+    seq_settings.dist_cutoff = 3.0;
     int max_num_dyes = 3;
     UniversalPrecomputations universal_precomputations(seq_model, num_channels);
     universal_precomputations.set_max_num_dyes(max_num_dyes);
@@ -126,7 +124,7 @@ BOOST_AUTO_TEST_CASE(probability_more_involved_test, *tolerance(TOL)) {
     r(2, 0) = 0.0;
     r(2, 1) = 0.0;
     RadiometryPrecomputations radiometry_precomputations(
-            r, seq_model, max_num_dyes);
+            r, seq_model, seq_settings, max_num_dyes);
     int channel = 0;
     StuckDyeHMM hmm(num_timesteps,
                     num_channels,
@@ -151,10 +149,12 @@ BOOST_AUTO_TEST_CASE(improve_fit_test, *tolerance(TOL)) {
         seq_model.channel_models[i]->p_dud = 0.04;
         seq_model.channel_models[i]->bg_sigma = 0.00667;
         seq_model.channel_models[i]->mu = 1.0;
-        seq_model.channel_models[i]->sigma = 0.05;
+        seq_model.channel_models[i]->sig = 0.05;
         seq_model.channel_models[i]->stuck_dye_ratio = 0.5;
         seq_model.channel_models[i]->p_stuck_dye_loss = 0.08;
     }
+    SequencingSettings seq_settings;
+    seq_settings.dist_cutoff = 3.0;
     int max_num_dyes = 3;
     UniversalPrecomputations universal_precomputations(seq_model, num_channels);
     universal_precomputations.set_max_num_dyes(max_num_dyes);
@@ -167,7 +167,7 @@ BOOST_AUTO_TEST_CASE(improve_fit_test, *tolerance(TOL)) {
     r(2, 0) = 0.0;
     r(2, 1) = 0.0;
     RadiometryPrecomputations radiometry_precomputations(
-            r, seq_model, max_num_dyes);
+            r, seq_model, seq_settings, max_num_dyes);
     int channel = 0;
     StuckDyeHMM hmm(num_timesteps,
                     num_channels,

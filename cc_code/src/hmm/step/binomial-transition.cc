@@ -9,6 +9,10 @@
 // Defining symbols from header:
 #include "binomial-transition.h"
 
+// Standard C++ library headers:
+#include <algorithm>
+#include <limits>
+
 // Local project headers:
 #include "hmm/state-vector/peptide-state-vector.h"
 #include "parameterization/fit/parameter-fitter.h"
@@ -16,6 +20,10 @@
 #include "tensor/vector.h"
 
 namespace whatprot {
+
+namespace {
+using std::numeric_limits;
+}  // namespace
 
 BinomialTransition::BinomialTransition(double q, int channel)
         : q(q), channel(channel) {
@@ -51,26 +59,39 @@ double BinomialTransition::prob(unsigned int from, unsigned int to) const {
     return values[from * (from + 1) / 2 + to];
 }
 
+void BinomialTransition::prune_forward(KDRange* range, bool* allow_detached) {
+    forward_range = *range;
+    range->min[1 + channel] = 0;
+    backward_range = *range;
+}
+
+void BinomialTransition::prune_backward(KDRange* range, bool* allow_detached) {
+    backward_range = backward_range.intersect(*range);
+    *range = backward_range;
+    range->max[1 + channel] = numeric_limits<unsigned int>::max();
+    forward_range = forward_range.intersect(*range);
+    *range = forward_range;
+}
+
 void BinomialTransition::forward(unsigned int* num_edmans,
                                  PeptideStateVector* psv) const {
-    int vector_stride = psv->tensor.strides[1 + channel];
-    int vector_length = psv->tensor.shape[1 + channel];
-    int outer_stride = vector_stride * vector_length;
-    int outer_max = psv->tensor.strides[0] * (*num_edmans + 1);
-    for (int outer = 0; outer < outer_max; outer += outer_stride) {
-        for (int inner = 0; inner < vector_stride; inner++) {
-            Vector v(vector_length,
-                     vector_stride,
-                     &psv->tensor.values[outer + inner]);
-            this->forward(&v);
-        }
+    TensorVectorIterator* itr =
+            psv->tensor.vector_iterator(forward_range, 1 + channel);
+    while (!itr->done()) {
+        this->forward(itr->get());
+        itr->advance();
     }
+    psv->range = backward_range;
 }
 
 void BinomialTransition::forward(Vector* v) const {
-    for (unsigned int to = 0; to < v->length; to++) {
+    unsigned int to_min = backward_range.min[1 + channel];
+    unsigned int to_max = backward_range.max[1 + channel];
+    for (unsigned int to = to_min; to < to_max; to++) {
         double v_to = 0.0;
-        for (unsigned int from = to; from < v->length; from++) {
+        unsigned int from_min = std::max(to, forward_range.min[1 + channel]);
+        unsigned int from_max = forward_range.max[1 + channel];
+        for (unsigned int from = from_min; from < from_max; from++) {
             v_to += prob(from, to) * (*v)[from];
         }
         (*v)[to] = v_to;
@@ -80,27 +101,26 @@ void BinomialTransition::forward(Vector* v) const {
 void BinomialTransition::backward(const PeptideStateVector& input,
                                   unsigned int* num_edmans,
                                   PeptideStateVector* output) const {
-    int vector_stride = input.tensor.strides[1 + channel];
-    int vector_length = input.tensor.shape[1 + channel];
-    int outer_stride = vector_stride * vector_length;
-    int outer_max = input.tensor.strides[0] * (*num_edmans + 1);
-    for (int outer = 0; outer < outer_max; outer += outer_stride) {
-        for (int inner = 0; inner < vector_stride; inner++) {
-            const Vector inv(vector_length,
-                             vector_stride,
-                             &input.tensor.values[outer + inner]);
-            Vector outv(vector_length,
-                        vector_stride,
-                        &output->tensor.values[outer + inner]);
-            this->backward(inv, &outv);
-        }
+    ConstTensorVectorIterator* in_itr =
+            input.tensor.const_vector_iterator(backward_range, 1 + channel);
+    TensorVectorIterator* out_itr =
+            output->tensor.vector_iterator(forward_range, 1 + channel);
+    while (!out_itr->done()) {
+        this->backward(*in_itr->get(), out_itr->get());
+        in_itr->advance();
+        out_itr->advance();
     }
+    output->range = forward_range;
 }
 
 void BinomialTransition::backward(const Vector& input, Vector* output) const {
-    for (int from = output->length - 1; from >= 0; from--) {
+    int from_min = forward_range.min[1 + channel];
+    int from_max = forward_range.max[1 + channel];
+    for (int from = from_max - 1; from >= from_min; from--) {
         double v_from = 0.0;
-        for (int to = 0; to <= from; to++) {
+        int to_min = backward_range.min[1 + channel];
+        int to_max = std::min(from, (int)backward_range.max[1 + channel] - 1);
+        for (int to = to_min; to <= to_max; to++) {
             v_from += prob(from, to) * input[to];
         }
         (*output)[from] = v_from;
@@ -114,23 +134,23 @@ void BinomialTransition::improve_fit(
         unsigned int num_edmans,
         double probability,
         ParameterFitter* fitter) const {
-    int vector_stride = forward_psv.tensor.strides[1 + channel];
-    int vector_length = forward_psv.tensor.shape[1 + channel];
-    int outer_stride = vector_stride * vector_length;
-    int outer_max = forward_psv.tensor.strides[0] * (num_edmans + 1);
-    for (int outer = 0; outer < outer_max; outer += outer_stride) {
-        for (int inner = 0; inner < vector_stride; inner++) {
-            const Vector fv(vector_length,
-                            vector_stride,
-                            &forward_psv.tensor.values[outer + inner]);
-            const Vector bv(vector_length,
-                            vector_stride,
-                            &backward_psv.tensor.values[outer + inner]);
-            const Vector nbv(vector_length,
-                             vector_stride,
-                             &next_backward_psv.tensor.values[outer + inner]);
-            this->improve_fit(fv, bv, nbv, probability, fitter);
-        }
+    ConstTensorVectorIterator* f_itr = forward_psv.tensor.const_vector_iterator(
+            forward_range, 1 + channel);
+    ConstTensorVectorIterator* b_itr =
+            backward_psv.tensor.const_vector_iterator(forward_range,
+                                                      1 + channel);
+    ConstTensorVectorIterator* nb_itr =
+            next_backward_psv.tensor.const_vector_iterator(backward_range,
+                                                           1 + channel);
+    while (!f_itr->done()) {
+        this->improve_fit(*f_itr->get(),
+                          *b_itr->get(),
+                          *nb_itr->get(),
+                          probability,
+                          fitter);
+        f_itr->advance();
+        b_itr->advance();
+        nb_itr->advance();
     }
 }
 
@@ -139,16 +159,20 @@ void BinomialTransition::improve_fit(const Vector& forward_vector,
                                      const Vector& next_backward_vector,
                                      double probability,
                                      ParameterFitter* fitter) const {
+    int from_min = forward_range.min[1 + channel];
+    int from_max = forward_range.max[1 + channel];
     // Note that we can ignore when starting location (from) is 0 because then
     // there are no dyes, it's irrelevant. We would be adding 0s.
-    for (int from = forward_vector.length - 1; from > 0; from--) {
+    for (int from = from_max - 1; from >= std::max(from_min, 1); from--) {
         double p_state =
                 forward_vector[from] * backward_vector[from] / probability;
         fitter->denominator += p_state * (double)from;
+        int to_min = backward_range.min[1 + channel];
+        int to_max = backward_range.max[1 + channel];
         // We can ignore when to and from are equal, because no dyes are lost
         // then, so it gives us nothing else for the numerator; we would be
         // adding zero.
-        for (int to = 0; to < from; to++) {
+        for (int to = to_min; to < std::min(to_max, from); to++) {
             double p_transition = forward_vector[from] * prob(from, to)
                                   * next_backward_vector[to] / probability;
             fitter->numerator += p_transition * (double)(from - to);

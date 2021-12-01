@@ -15,20 +15,25 @@
 // Local project headers:
 #include "common/radiometry.h"
 #include "hmm/state-vector/peptide-state-vector.h"
-#include "hmm/step/step.h"
+#include "hmm/step/peptide-step.h"
 #include "parameterization/fit/sequencing-model-fitter.h"
 #include "parameterization/model/sequencing-model.h"
+#include "parameterization/settings/sequencing-settings.h"
+#include "util/kd-range.h"
 
 namespace whatprot {
 
-class PeptideEmission : public Step<PeptideStateVector> {
+class PeptideEmission : public PeptideStep {
 public:
     PeptideEmission(const Radiometry& radiometry,
                     unsigned int timestep,
                     int max_num_dyes,
-                    const SequencingModel& seq_model);
+                    const SequencingModel& seq_model,
+                    const SequencingSettings& seq_settings);
     double& prob(int channel, int num_dyes);
     double prob(int channel, int num_dyes) const;
+    virtual void prune_forward(KDRange* range) override;
+    virtual void prune_backward(KDRange* range) override;
     virtual void forward(unsigned int* num_edmans,
                          PeptideStateVector* psv) const override;
     virtual void backward(const PeptideStateVector& input,
@@ -42,6 +47,7 @@ public:
                              SequencingModelFitter* fitter) const override;
     Radiometry radiometry;
     unsigned int timestep;
+    KDRange pruned_range;
     std::vector<double> values;
     unsigned int num_channels;
     int max_num_dyes;

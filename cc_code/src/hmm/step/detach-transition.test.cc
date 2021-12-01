@@ -135,21 +135,6 @@ BOOST_AUTO_TEST_CASE(forward_in_place_multiple_dye_colors_test,
     BOOST_TEST((psv.tensor[{0, 1, 1}]) == 0.4 * (1 - p_detach));
 }
 
-BOOST_AUTO_TEST_CASE(backward_in_place_trivial_test, *tolerance(TOL)) {
-    double p_detach = 0.05;
-    DetachTransition dt(p_detach);
-    unsigned int order = 2;
-    unsigned int* shape = new unsigned int[order];
-    shape[0] = 1;
-    shape[1] = 1;
-    PeptideStateVector psv(order, shape);
-    delete[] shape;
-    psv.tensor[{0, 0}] = 1.0;
-    unsigned int edmans = 0;
-    dt.backward(psv, &edmans, &psv);
-    BOOST_TEST((psv.tensor[{0, 0}]) == 1.0);
-}
-
 BOOST_AUTO_TEST_CASE(backward_new_tsr_trivial_test, *tolerance(TOL)) {
     double p_detach = 0.05;
     DetachTransition dt(p_detach);
@@ -164,23 +149,6 @@ BOOST_AUTO_TEST_CASE(backward_new_tsr_trivial_test, *tolerance(TOL)) {
     unsigned int edmans = 0;
     dt.backward(psv1, &edmans, &psv2);
     BOOST_TEST((psv2.tensor[{0, 0}]) == 1.0);
-}
-
-BOOST_AUTO_TEST_CASE(backward_in_place_basic_test, *tolerance(TOL)) {
-    double p_detach = 0.05;
-    DetachTransition dt(p_detach);
-    unsigned int order = 2;
-    unsigned int* shape = new unsigned int[order];
-    shape[0] = 1;
-    shape[1] = 2;
-    PeptideStateVector psv(order, shape);
-    delete[] shape;
-    psv.tensor[{0, 0}] = 0.3;
-    psv.tensor[{0, 1}] = 0.7;
-    unsigned int edmans = 0;
-    dt.backward(psv, &edmans, &psv);
-    BOOST_TEST((psv.tensor[{0, 0}]) == 0.3);
-    BOOST_TEST((psv.tensor[{0, 1}]) == p_detach * 0.3 + (1 - p_detach) * 0.7);
 }
 
 BOOST_AUTO_TEST_CASE(backward_new_tsr_basic_test, *tolerance(TOL)) {
@@ -201,25 +169,6 @@ BOOST_AUTO_TEST_CASE(backward_new_tsr_basic_test, *tolerance(TOL)) {
     BOOST_TEST((psv2.tensor[{0, 1}]) == p_detach * 0.3 + (1 - p_detach) * 0.7);
 }
 
-BOOST_AUTO_TEST_CASE(backward_in_place_bigger_test, *tolerance(TOL)) {
-    double p_detach = 0.05;
-    DetachTransition dt(p_detach);
-    unsigned int order = 2;
-    unsigned int* shape = new unsigned int[order];
-    shape[0] = 1;
-    shape[1] = 3;
-    PeptideStateVector psv(order, shape);
-    delete[] shape;
-    psv.tensor[{0, 0}] = 0.3;
-    psv.tensor[{0, 1}] = 0.6;
-    psv.tensor[{0, 2}] = 0.1;
-    unsigned int edmans = 0;
-    dt.backward(psv, &edmans, &psv);
-    BOOST_TEST((psv.tensor[{0, 0}]) == 0.3);
-    BOOST_TEST((psv.tensor[{0, 1}]) == p_detach * 0.3 + (1 - p_detach) * 0.6);
-    BOOST_TEST((psv.tensor[{0, 2}]) == p_detach * 0.3 + (1 - p_detach) * 0.1);
-}
-
 BOOST_AUTO_TEST_CASE(backward_new_tsr_bigger_test, *tolerance(TOL)) {
     double p_detach = 0.05;
     DetachTransition dt(p_detach);
@@ -238,33 +187,6 @@ BOOST_AUTO_TEST_CASE(backward_new_tsr_bigger_test, *tolerance(TOL)) {
     BOOST_TEST((psv2.tensor[{0, 0}]) == 0.3);
     BOOST_TEST((psv2.tensor[{0, 1}]) == p_detach * 0.3 + (1 - p_detach) * 0.6);
     BOOST_TEST((psv2.tensor[{0, 2}]) == p_detach * 0.3 + (1 - p_detach) * 0.1);
-}
-
-BOOST_AUTO_TEST_CASE(backward_in_place_multiple_edmans_test, *tolerance(TOL)) {
-    double p_detach = 0.05;
-    DetachTransition dt(p_detach);
-    unsigned int order = 2;
-    unsigned int* shape = new unsigned int[order];
-    shape[0] = 3;
-    shape[1] = 2;
-    PeptideStateVector psv(order, shape);
-    delete[] shape;
-    psv.tensor[{0, 0}] = 0.88;
-    psv.tensor[{0, 1}] = 0.2;
-    psv.tensor[{1, 0}] = 0.88;
-    psv.tensor[{1, 1}] = 0.4;
-    psv.tensor[{2, 0}] = 0.88;
-    psv.tensor[{2, 1}] = 0.6;
-    unsigned int edmans = 2;
-    dt.backward(psv, &edmans, &psv);
-    // Just testing the ones with at least one lit amino acid here. See below
-    // for other tests.
-    BOOST_TEST((psv.tensor[{0, 0}]) == 0.88);
-    BOOST_TEST((psv.tensor[{0, 1}]) == p_detach * 0.88 + (1 - p_detach) * 0.2);
-    BOOST_TEST((psv.tensor[{1, 0}]) == 0.88);
-    BOOST_TEST((psv.tensor[{1, 1}]) == p_detach * 0.88 + (1 - p_detach) * 0.4);
-    BOOST_TEST((psv.tensor[{2, 0}]) == 0.88);
-    BOOST_TEST((psv.tensor[{2, 1}]) == p_detach * 0.88 + (1 - p_detach) * 0.6);
 }
 
 BOOST_AUTO_TEST_CASE(backward_new_tsr_multiple_edmans_test, *tolerance(TOL)) {
@@ -293,32 +215,6 @@ BOOST_AUTO_TEST_CASE(backward_new_tsr_multiple_edmans_test, *tolerance(TOL)) {
     BOOST_TEST((psv2.tensor[{1, 1}]) == p_detach * 0.88 + (1 - p_detach) * 0.4);
     BOOST_TEST((psv2.tensor[{2, 0}]) == 0.88);
     BOOST_TEST((psv2.tensor[{2, 1}]) == p_detach * 0.88 + (1 - p_detach) * 0.6);
-}
-
-BOOST_AUTO_TEST_CASE(backward_in_place_multiple_dye_colors_test,
-                     *tolerance(TOL)) {
-    double p_detach = 0.05;
-    DetachTransition dt(p_detach);
-    unsigned int order = 3;
-    unsigned int* shape = new unsigned int[order];
-    shape[0] = 1;
-    shape[1] = 2;
-    shape[2] = 2;
-    PeptideStateVector psv(order, shape);
-    delete[] shape;
-    psv.tensor[{0, 0, 0}] = 0.1;
-    psv.tensor[{0, 0, 1}] = 0.2;
-    psv.tensor[{0, 1, 0}] = 0.3;
-    psv.tensor[{0, 1, 1}] = 0.4;
-    unsigned int edmans = 0;
-    dt.backward(psv, &edmans, &psv);
-    BOOST_TEST((psv.tensor[{0, 0, 0}]) == 0.1);
-    BOOST_TEST((psv.tensor[{0, 0, 1}])
-               == p_detach * 0.1 + (1 - p_detach) * 0.2);
-    BOOST_TEST((psv.tensor[{0, 1, 0}])
-               == p_detach * 0.1 + (1 - p_detach) * 0.3);
-    BOOST_TEST((psv.tensor[{0, 1, 1}])
-               == p_detach * 0.1 + (1 - p_detach) * 0.4);
 }
 
 BOOST_AUTO_TEST_CASE(backward_new_tsr_multiple_dye_colors_test,

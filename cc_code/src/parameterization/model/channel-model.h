@@ -19,6 +19,7 @@ class ChannelModel {
 public:
     virtual ~ChannelModel();
     virtual double pdf(double observed, int state) const;
+    double sigma(int state) const;
     double relative_distance(const ChannelModel& channel_model) const;
     std::string debug_string() const;
 
@@ -26,7 +27,7 @@ public:
     double p_dud;
     double bg_sigma;
     double mu;
-    double sigma;
+    double sig;
     double stuck_dye_ratio;
     double p_stuck_dye_loss;
 };

@@ -58,6 +58,13 @@ BOOST_AUTO_TEST_CASE(improve_fit_basic_test, *tolerance(TOL)) {
     double probability = 1.0;
     SequencingModelFitter smf;
     smf.channel_fits.push_back(new ChannelModelFitter());
+    KDRange range;
+    range.min.resize(order, 0);
+    range.max.resize(order);
+    range.max[0] = 1;
+    range.max[1] = 2;
+    dt.forward_range = range;
+    dt.backward_range = range;
     dt.improve_fit(fpsv, bpsv, nbpsv, edmans, probability, &smf);
     BOOST_TEST(smf.channel_fits[0]->p_dud_fit.get()
                == (0.71 * q * 0.33) / (0.71 * 0.72));

@@ -33,8 +33,12 @@ ChannelModel::~ChannelModel() {}
 
 double ChannelModel::pdf(double observed, int state) const {
     double offset = observed - mu * (double)state;
-    double s = sqrt(bg_sigma * bg_sigma + (double)state * sigma * sigma);
+    double s = sigma(state);
     return (1.0 / (s * sqrt(2.0 * PI))) * exp(-offset * offset / (2.0 * s * s));
+}
+
+double ChannelModel::sigma(int state) const {
+    return sqrt(bg_sigma * bg_sigma + (double)state * sig * sig);
 }
 
 double ChannelModel::relative_distance(
@@ -44,7 +48,7 @@ double ChannelModel::relative_distance(
     dist = max(dist, abs(p_dud - channel_model.p_dud) / p_dud);
     dist = max(dist, abs(bg_sigma - channel_model.bg_sigma) / bg_sigma);
     dist = max(dist, abs(mu - channel_model.mu) / mu);
-    dist = max(dist, abs(sigma - channel_model.sigma) / sigma);
+    dist = max(dist, abs(sig - channel_model.sig) / sig);
     dist = max(dist,
                abs(stuck_dye_ratio - channel_model.stuck_dye_ratio)
                        / stuck_dye_ratio);
@@ -55,10 +59,9 @@ double ChannelModel::relative_distance(
 }
 
 string ChannelModel::debug_string() const {
-    return "Bleach rate: " + to_string(p_bleach)
-           + ", Dud rate: " + to_string(p_dud) + ", mu: " + to_string(mu)
-           + ", sigma: " + to_string(sigma)
-           + ", Stuck dye ratio: " + to_string(stuck_dye_ratio)
+    return "Bleach rate: " + to_string(p_bleach) + ", Dud rate: "
+           + to_string(p_dud) + ", mu: " + to_string(mu) + ", sig: "
+           + to_string(sig) + ", Stuck dye ratio: " + to_string(stuck_dye_ratio)
            + ", Stuck dye loss rate: " + to_string(p_stuck_dye_loss);
 }
 

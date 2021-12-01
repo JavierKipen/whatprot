@@ -9,17 +9,25 @@
 // Defining symbols from header:
 #include "peptide-hmm.h"
 
+// Standard C++ library headers:
+#include <vector>
+
 // Local project headers:
 #include "hmm/precomputations/dye-seq-precomputations.h"
 #include "hmm/precomputations/radiometry-precomputations.h"
 #include "hmm/precomputations/universal-precomputations.h"
 #include "hmm/state-vector/peptide-state-vector.h"
-#include "hmm/step/binomial-transition.h"
+#include "hmm/step/bleach-transition.h"
 #include "hmm/step/detach-transition.h"
+#include "hmm/step/dud-transition.h"
 #include "hmm/step/edman-transition.h"
 #include "hmm/step/peptide-emission.h"
 
 namespace whatprot {
+
+namespace {
+using std::vector;
+}
 
 PeptideHMM::PeptideHMM(
         unsigned int num_timesteps,
@@ -29,18 +37,39 @@ PeptideHMM::PeptideHMM(
         const UniversalPrecomputations& universal_precomputations)
         : GenericHMM(num_timesteps) {
     for (unsigned int c = 0; c < num_channels; c++) {
-        steps.push_back(&universal_precomputations.dud_transitions[c]);
+        steps.push_back(new DudTransition(
+                universal_precomputations.dud_transitions[c]));
     }
-    steps.push_back(&radiometry_precomputations.peptide_emissions[0]);
+    steps.push_back(new PeptideEmission(
+            radiometry_precomputations.peptide_emissions[0]));
     for (unsigned int t = 1; t < num_timesteps; t++) {
-        steps.push_back(&universal_precomputations.detach_transition);
+        // DetachTransition goes first for efficiency. If it's possible that
+        // there are no fluorophores of any color for the next emissions step,
+        // then DetachTransition will map that to any possible number of
+        // fluorophores from the forward direction. Having DetachTransition
+        // first assures that this is pruned down to just the fluorophore counts
+        // which are reasonable from the previous emissions step.
+        steps.push_back(new DetachTransition(
+                universal_precomputations.detach_transition));
         for (unsigned int c = 0; c < num_channels; c++) {
-            steps.push_back(&universal_precomputations.bleach_transitions[c]);
+            steps.push_back(new BleachTransition(
+                    universal_precomputations.bleach_transitions[c]));
         }
-        steps.push_back(&dye_seq_precomputations.edman_transition);
-        steps.push_back(&radiometry_precomputations.peptide_emissions[t]);
+        steps.push_back(
+                new EdmanTransition(dye_seq_precomputations.edman_transition));
+        steps.push_back(new PeptideEmission(
+                radiometry_precomputations.peptide_emissions[t]));
     }
     tensor_shape = dye_seq_precomputations.tensor_shape;
+    KDRange range;
+    range.min = vector<unsigned int>(tensor_shape.size(), 0u);
+    range.max = tensor_shape;
+    for (unsigned int i = 0; i < steps.size(); i++) {
+        steps[i]->prune_forward(&range);
+    }
+    for (int i = steps.size() - 1; i >= 0; i--) {
+        steps[i]->prune_backward(&range);
+    }
 }
 
 PeptideStateVector PeptideHMM::create_states() const {

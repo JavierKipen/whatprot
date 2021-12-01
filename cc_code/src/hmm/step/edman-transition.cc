@@ -24,6 +24,10 @@ EdmanTransition::EdmanTransition(double p_edman_failure,
           dye_track(dye_track),
           p_edman_failure(p_edman_failure) {}
 
+void EdmanTransition::prune_forward(KDRange* range) {}
+
+void EdmanTransition::prune_backward(KDRange* range) {}
+
 void EdmanTransition::forward(unsigned int* num_edmans,
                               PeptideStateVector* psv) const {
     (*num_edmans)++;

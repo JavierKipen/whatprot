@@ -9,11 +9,15 @@
 // Defining symbols from header:
 #include "peptide-emission.h"
 
+// Standard C++ library headers:
+#include <limits>
+
 // Local project headers:
 #include "common/radiometry.h"
 #include "hmm/state-vector/peptide-state-vector.h"
 #include "parameterization/fit/sequencing-model-fitter.h"
 #include "parameterization/model/sequencing-model.h"
+#include "parameterization/settings/sequencing-settings.h"
 #include "tensor/const-tensor-iterator.h"
 #include "tensor/tensor-iterator.h"
 #include "util/kd-range.h"
@@ -27,7 +31,8 @@ using std::function;
 PeptideEmission::PeptideEmission(const Radiometry& radiometry,
                                  unsigned int timestep,
                                  int max_num_dyes,
-                                 const SequencingModel& seq_model)
+                                 const SequencingModel& seq_model,
+                                 const SequencingSettings& seq_settings)
         : radiometry(radiometry),
           timestep(timestep),
           num_channels(radiometry.num_channels),
@@ -37,6 +42,35 @@ PeptideEmission::PeptideEmission(const Radiometry& radiometry,
         for (int d = 0; d < (max_num_dyes + 1); d++) {
             prob(c, d) = seq_model.channel_models[c]->pdf(
                     radiometry(timestep, c), d);
+        }
+    }
+    pruned_range.min.resize(1 + num_channels);
+    pruned_range.max.resize(1 + num_channels);
+    pruned_range.min[0] = 0;
+    pruned_range.max[0] = timestep + 1;
+    if (seq_settings.dist_cutoff == std::numeric_limits<double>::max()) {
+        for (unsigned int c = 0; c < num_channels; c++) {
+            pruned_range.min[1 + c] = 0;
+            pruned_range.max[1 + c] = std::numeric_limits<unsigned int>::max();
+        }
+    } else {
+        for (unsigned int c = 0; c < num_channels; c++) {
+            for (int d = 0; d < max_num_dyes; d++) {
+                double s = seq_settings.dist_cutoff
+                           * seq_model.channel_models[c]->sigma(d);
+                if ((double)d + s > radiometry(timestep, c)) {
+                    pruned_range.min[c] = d;
+                    break;
+                }
+            }
+            for (int d = pruned_range.min[c]; d < max_num_dyes; d++) {
+                double s = seq_settings.dist_cutoff
+                           * seq_model.channel_models[c]->sigma(d);
+                if ((double)d - s > radiometry(timestep, c)) {
+                    pruned_range.max[c] = d;
+                    break;
+                }
+            }
         }
     }
 }
@@ -49,17 +83,22 @@ double PeptideEmission::prob(int channel, int num_dyes) const {
     return values[channel * (max_num_dyes + 1) + num_dyes];
 }
 
+void PeptideEmission::prune_forward(KDRange* range, bool* allow_detached) {
+    pruned_range = pruned_range.intersect(*range);
+    *range = pruned_range;
+    *allow_detached = *allow_detached && pruned_range.includes_zero();
+}
+
+void PeptideEmission::prune_backward(KDRange* range, bool* allow_detached) {
+    pruned_range = pruned_range.intersect(*range);
+    *range = pruned_range;
+    *allow_detached = *allow_detached && pruned_range.includes_zero();
+}
+
 void PeptideEmission::forward(unsigned int* num_edmans,
                               PeptideStateVector* psv) const {
-    KDRange range;
-    range.min.resize(1 + num_channels);
-    range.max.resize(1 + num_channels);
-    for (unsigned int o = 0; o < 1 + num_channels; o++) {
-        range.min[o] = 0;
-        range.max[o] = psv->tensor.shape[o];
-    }
-    TensorIterator* it = psv->tensor.iterator(range);
-    while (it->index < (*num_edmans + 1) * psv->tensor.strides[0]) {
+    TensorIterator* it = psv->tensor.iterator(pruned_range);
+    while (!it->done()) {
         double product = 1.0;
         for (unsigned int c = 0; c < num_channels; c++) {
             product *= prob(c, it->loc[1 + c]);
@@ -68,20 +107,19 @@ void PeptideEmission::forward(unsigned int* num_edmans,
         it->advance();
     }
     delete it;
+    psv->range = pruned_range;
+    if (pruned_range.includes_zero()) {
+        for (unsigned int c = 0; c < num_channels; c++) {
+            psv->p_detached *= prob(c, 0);
+        }
+    }
 }
 
 void PeptideEmission::backward(const PeptideStateVector& input,
                                unsigned int* num_edmans,
                                PeptideStateVector* output) const {
-    KDRange range;
-    range.min.resize(1 + num_channels);
-    range.max.resize(1 + num_channels);
-    for (unsigned int o = 0; o < 1 + num_channels; o++) {
-        range.min[o] = 0;
-        range.max[o] = input.tensor.shape[o];
-    }
-    ConstTensorIterator* inputit = input.tensor.const_iterator(range);
-    TensorIterator* outputit = output->tensor.iterator(range);
+    ConstTensorIterator* inputit = input.tensor.const_iterator(pruned_range);
+    TensorIterator* outputit = output->tensor.iterator(pruned_range);
     while (inputit->index < (*num_edmans + 1) * input.tensor.strides[0]) {
         double product = 1.0;
         for (unsigned int c = 0; c < num_channels; c++) {
@@ -93,6 +131,13 @@ void PeptideEmission::backward(const PeptideStateVector& input,
     }
     delete inputit;
     delete outputit;
+    output->range = pruned_range;
+    if (pruned_range.includes_zero()) {
+        for (unsigned int c = 0; c < num_channels; c++) {
+            output->p_detached = input.p_detached * prob(c, 0);
+        }
+    }
+    output->allow_detached = input.allow_detached;
 }
 
 void PeptideEmission::improve_fit(const PeptideStateVector& forward_psv,
@@ -101,15 +146,8 @@ void PeptideEmission::improve_fit(const PeptideStateVector& forward_psv,
                                   unsigned int num_edmans,
                                   double probability,
                                   SequencingModelFitter* fitter) const {
-    KDRange range;
-    range.min.resize(1 + num_channels);
-    range.max.resize(1 + num_channels);
-    for (unsigned int o = 0; o < 1 + num_channels; o++) {
-        range.min[o] = 0;
-        range.max[o] = forward_psv.tensor.shape[o];
-    }
-    ConstTensorIterator* fit = forward_psv.tensor.const_iterator(range);
-    ConstTensorIterator* bit = backward_psv.tensor.const_iterator(range);
+    ConstTensorIterator* fit = forward_psv.tensor.const_iterator(pruned_range);
+    ConstTensorIterator* bit = backward_psv.tensor.const_iterator(pruned_range);
     while (fit->index < (num_edmans + 1) * forward_psv.tensor.strides[0]) {
         double p_state = (*fit->get()) * (*bit->get()) / probability;
         for (unsigned int c = 0; c < num_channels; c++) {
@@ -120,6 +158,15 @@ void PeptideEmission::improve_fit(const PeptideStateVector& forward_psv,
         }
         fit->advance();
         bit->advance();
+    }
+    if (pruned_range.includes_zero()) {
+        double p_state = forward_psv.p_detached * backward_psv.p_detached;
+        for (unsigned int c = 0; c < num_channels; c++) {
+            double intensity = radiometry(num_edmans, c);
+            int dye_count = 0;
+            fitter->channel_fits[c]->distribution_fit->add_sample(
+                    intensity, dye_count, p_state);
+        }
     }
     delete fit;
     delete bit;

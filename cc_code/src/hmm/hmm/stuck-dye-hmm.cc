@@ -17,7 +17,8 @@
 #include "hmm/precomputations/radiometry-precomputations.h"
 #include "hmm/precomputations/universal-precomputations.h"
 #include "hmm/state-vector/stuck-dye-state-vector.h"
-#include "hmm/step/step.h"
+#include "hmm/step/stuck-dye-emission.h"
+#include "hmm/step/stuck-dye-transition.h"
 #include "parameterization/fit/sequencing-model-fitter.h"
 
 namespace whatprot {
@@ -29,12 +30,13 @@ StuckDyeHMM::StuckDyeHMM(
         const RadiometryPrecomputations& radiometry_precomputations,
         const UniversalPrecomputations& universal_precomputations)
         : GenericHMM(num_timesteps) {
-    steps.push_back(&radiometry_precomputations.stuck_dye_emissions[channel]);
+    steps.push_back(new StuckDyeEmission(
+            radiometry_precomputations.stuck_dye_emissions[channel]));
     for (unsigned int i = 1; i < num_timesteps; i++) {
-        steps.push_back(
-                &universal_precomputations.stuck_dye_transitions[channel]);
-        steps.push_back(
-                &radiometry_precomputations.stuck_dye_emissions[channel]);
+        steps.push_back(new StuckDyeTransition(
+                universal_precomputations.stuck_dye_transitions[channel]));
+        steps.push_back(new StuckDyeEmission(
+                radiometry_precomputations.stuck_dye_emissions[channel]));
     }
 }
 

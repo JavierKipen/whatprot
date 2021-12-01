@@ -24,6 +24,7 @@
 #include "hmm/precomputations/universal-precomputations.h"
 #include "parameterization/fit/sequencing-model-fitter.h"
 #include "parameterization/model/sequencing-model.h"
+#include "parameterization/settings/sequencing-settings.h"
 
 namespace whatprot {
 
@@ -37,9 +38,11 @@ HMMFitter::HMMFitter(unsigned int num_timesteps,
                      unsigned int num_channels,
                      double stopping_threshold,
                      const SequencingModel& seq_model,
+                     const SequencingSettings& seq_settings,
                      const DyeSeq& dye_seq)
         : dye_seq(dye_seq),
           seq_model(seq_model),
+          seq_settings(seq_settings),
           stopping_threshold(stopping_threshold),
           num_timesteps(num_timesteps),
           num_channels(num_channels) {
@@ -63,6 +66,7 @@ HMMFitter::HMMFitter(unsigned int num_timesteps,
 SequencingModel HMMFitter::fit(
         const std::vector<Radiometry>& radiometries) const {
     SequencingModel sm = seq_model;
+    SequencingSettings ss = seq_settings;
     cout << sm.debug_string() << "\n";
     while (true) {
         SequencingModelFitter fitter(num_channels);
@@ -72,7 +76,7 @@ SequencingModel HMMFitter::fit(
         universal_precomputations.set_max_num_dyes(max_num_dyes);
         for (const Radiometry& radiometry : radiometries) {
             RadiometryPrecomputations radiometry_precomputations(
-                    radiometry, sm, max_num_dyes);
+                    radiometry, sm, ss, max_num_dyes);
             PeptideHMM hmm(num_timesteps,
                            num_channels,
                            dye_seq_precomputations,

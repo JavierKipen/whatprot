@@ -18,6 +18,8 @@ template <typename SV>  // SV is the state vector type.
 class Step {
 public:
     virtual void forward(unsigned int* num_edmans, SV* states) const = 0;
+    // Implementations are not required to work properly if input and output are
+    // the same SV. Callers should not count on this.
     virtual void backward(const SV& input,
                           unsigned int* num_edmans,
                           SV* output) const = 0;

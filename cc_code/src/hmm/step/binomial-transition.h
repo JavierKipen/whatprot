@@ -14,19 +14,22 @@
 
 // Local project headers:
 #include "hmm/state-vector/peptide-state-vector.h"
-#include "hmm/step/step.h"
+#include "hmm/step/peptide-step.h"
 #include "parameterization/fit/parameter-fitter.h"
 #include "tensor/tensor.h"
 #include "tensor/vector.h"
+#include "util/kd-range.h"
 
 namespace whatprot {
 
-class BinomialTransition : public Step<PeptideStateVector> {
+class BinomialTransition : public PeptideStep {
 public:
     BinomialTransition(double q, int channel);
     void reserve(unsigned int max_n);
     double& prob(unsigned int from, unsigned int to);
     double prob(unsigned int from, unsigned int to) const;
+    virtual void prune_forward(KDRange* range, bool* allow_detached) override;
+    virtual void prune_backward(KDRange* range, bool* allow_detached) override;
     virtual void forward(unsigned int* num_edmans,
                          PeptideStateVector* psv) const override;
     void forward(Vector* v) const;
@@ -45,6 +48,8 @@ public:
                      const Vector& next_backward_vector,
                      double probability,
                      ParameterFitter* fitter) const;
+    KDRange forward_range;
+    KDRange backward_range;
     std::vector<double> values;
     const double q;
     int channel;

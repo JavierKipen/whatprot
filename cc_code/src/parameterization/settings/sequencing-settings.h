@@ -6,24 +6,16 @@
 * Project: Protein Fluorosequencing                                            *
 \******************************************************************************/
 
-#ifndef WHATPROT_UTIL_KD_RANGE_H
-#define WHATPROT_UTIL_KD_RANGE_H
-
-// Standard C++ library headers:
-#include <vector>
+#ifndef WHATPROT_PARAMETERIZATION_SETTINGS_SEQUENCING_SETTINGS_H
+#define WHATPROT_PARAMETERIZATION_SETTINGS_SEQUENCING_SETTINGS_H
 
 namespace whatprot {
 
-class KDRange {
+class SequencingSettings {
 public:
-    KDRange intersect(const KDRange& other) const;
-    bool is_empty() const;
-    bool includes_zero();
-
-    std::vector<unsigned int> min;
-    std::vector<unsigned int> max;
+    double dist_cutoff;
 };
 
 }  // namespace whatprot
 
-#endif  // WHATPROT_UTIL_KD_RANGE_H
+#endif  // WHATPROT_PARAMETERIZATION_SETTINGS_SEQUENCING_SETTINGS_H

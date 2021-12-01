@@ -11,16 +11,21 @@
 
 // Local project headers:
 #include "hmm/state-vector/peptide-state-vector.h"
-#include "hmm/step/step.h"
+#include "hmm/step/peptide-step.h"
 #include "parameterization/fit/sequencing-model-fitter.h"
+#include "util/kd-range.h"
 
 namespace whatprot {
 
-class DetachTransition : public Step<PeptideStateVector> {
+class DetachTransition : public PeptideStep {
 public:
     DetachTransition(double p_detach);
+    virtual void prune_forward(KDRange* range) override;
+    virtual void prune_backward(KDRange* range) override;
     virtual void forward(unsigned int* num_edmans,
                          PeptideStateVector* psv) const override;
+    // The 'input' and 'output' parameters MUST NOT be the same
+    // PeptideStateVector, if they are, this will not do what you want.
     virtual void backward(const PeptideStateVector& input,
                           unsigned int* num_edmans,
                           PeptideStateVector* output) const override;
@@ -30,8 +35,11 @@ public:
                              unsigned int num_edmans,
                              double probability,
                              SequencingModelFitter* fitter) const override;
-
+    KDRange forward_range;
+    KDRange backward_range;
     double p_detach;
+    unsigned int num_channels;
+    bool omit_detach;
 };
 
 }  // namespace whatprot

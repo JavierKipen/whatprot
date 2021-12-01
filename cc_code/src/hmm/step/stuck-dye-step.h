@@ -6,24 +6,17 @@
 * Project: Protein Fluorosequencing                                            *
 \******************************************************************************/
 
-#ifndef WHATPROT_UTIL_KD_RANGE_H
-#define WHATPROT_UTIL_KD_RANGE_H
+#ifndef WHATPROT_HMM_STEP_STUCK_DYE_STEP_H
+#define WHATPROT_HMM_STEP_STUCK_DYE_STEP_H
 
-// Standard C++ library headers:
-#include <vector>
+// Local project headers:
+#include "hmm/state-vector/stuck-dye-state-vector.h"
+#include "hmm/step/step.h"
 
 namespace whatprot {
 
-class KDRange {
-public:
-    KDRange intersect(const KDRange& other) const;
-    bool is_empty() const;
-    bool includes_zero();
-
-    std::vector<unsigned int> min;
-    std::vector<unsigned int> max;
-};
+class StuckDyeStep : public Step<StuckDyeStateVector> {};
 
 }  // namespace whatprot
 
-#endif  // WHATPROT_UTIL_KD_RANGE_H
+#endif  // WHATPROT_HMM_STEP_STUCK_DYE_STEP_H
