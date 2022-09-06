@@ -41,9 +41,12 @@ PeptideEmission::PeptideEmission(const Radiometry& radiometry,
           num_channels(radiometry.num_channels),
           max_num_dyes(max_num_dyes) {
     values = new vector<double>(num_channels * (max_num_dyes + 1), 0);
+    fret_values = new vector<double>(num_channels * (max_num_dyes + 1), 0);
     for (unsigned int c = 0; c < num_channels; c++) {
         for (int d = 0; d < (max_num_dyes + 1); d++) {
             prob(c, d) = seq_model.channel_models[c]->pdf(
+                    radiometry(timestep, c), d);
+            p_if_fret(c, d) = seq_model.channel_models[c]->fret_pdf(
                     radiometry(timestep, c), d);
         }
     }
@@ -92,6 +95,7 @@ PeptideEmission::PeptideEmission(const PeptideEmission& other)
           timestep(other.timestep),
           pruned_range(other.pruned_range),
           values(other.values),
+          fret_values(other.fret_values),
           i_am_a_copy(true),
           num_channels(other.num_channels),
           max_num_dyes(other.max_num_dyes) {}
@@ -99,6 +103,7 @@ PeptideEmission::PeptideEmission(const PeptideEmission& other)
 PeptideEmission::~PeptideEmission() {
     if (!i_am_a_copy) {
         delete values;
+        delete fret_values;
     }
 }
 
@@ -108,6 +113,14 @@ double& PeptideEmission::prob(int channel, int num_dyes) {
 
 double PeptideEmission::prob(int channel, int num_dyes) const {
     return (*values)[channel * (max_num_dyes + 1) + num_dyes];
+}
+
+double& PeptideEmission::p_if_fret(int channel, int num_dyes) {
+    return (*fret_values)[channel * (max_num_dyes + 1) + num_dyes];
+}
+
+double PeptideEmission::p_if_fret(int channel, int num_dyes) const {
+    return (*fret_values)[channel * (max_num_dyes + 1) + num_dyes];
 }
 
 void PeptideEmission::prune_forward(KDRange* range, bool* allow_detached) {
@@ -130,9 +143,21 @@ PeptideStateVector* PeptideEmission::forward_or_backward(
     ConstTensorIterator* inputit = input.tensor.const_iterator(pruned_range);
     TensorIterator* outputit = output->tensor.iterator(pruned_range);
     while (!inputit->done()) {
-        double product = 1.0;
+        unsigned int num_nonzero = 0;
         for (unsigned int c = 0; c < num_channels; c++) {
-            product *= prob(c, inputit->loc[1 + c]);
+            if (inputit->loc[1 + c] > 0) {
+                num_nonzero++;
+            }
+        }
+        double product = 1.0;
+        if (num_nonzero > 1) {
+            for (unsigned int c = 0; c < num_channels; c++) {
+                product *= p_if_fret(c, inputit->loc[1 + c]);
+            }
+        } else {
+            for (unsigned int c = 0; c < num_channels; c++) {
+                product *= prob(c, inputit->loc[1 + c]);
+            }
         }
         *outputit->get() = *inputit->get() * product;
         inputit->advance();

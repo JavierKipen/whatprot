@@ -19,7 +19,9 @@ class ChannelModel {
 public:
     virtual ~ChannelModel();
     virtual double pdf(double observed, int state) const;
+    virtual double fret_pdf(double observed, int state) const;
     virtual double sigma(int state) const;
+    virtual double fret_sigma(int state) const;
     double relative_distance(const ChannelModel& channel_model) const;
     std::string debug_string() const;
 
@@ -30,6 +32,7 @@ public:
     double sig;
     double stuck_dye_ratio;
     double p_stuck_dye_loss;
+    double fret_eff;
 };
 
 }  // namespace whatprot

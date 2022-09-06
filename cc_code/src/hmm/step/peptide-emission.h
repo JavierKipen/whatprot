@@ -34,6 +34,8 @@ public:
     virtual ~PeptideEmission();
     double& prob(int channel, int num_dyes);
     double prob(int channel, int num_dyes) const;
+    double& p_if_fret(int channel, int num_dyes);
+    double p_if_fret(int channel, int num_dyes) const;
     virtual void prune_forward(KDRange* range, bool* allow_detached) override;
     virtual void prune_backward(KDRange* range, bool* allow_detached) override;
     PeptideStateVector* forward_or_backward(const PeptideStateVector& input,
@@ -55,6 +57,7 @@ public:
     KDRange pruned_range;
     bool allow_detached;
     std::vector<double>* values;
+    std::vector<double>* fret_values;
     bool i_am_a_copy;
     unsigned int num_channels;
     int max_num_dyes;

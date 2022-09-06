@@ -68,18 +68,26 @@ void run_score_hmm(double hmm_pruning_cutoff,
 
     start_time = wall_time();
     SequencingModel seq_model;
-    seq_model.p_edman_failure = 0.06;
-    seq_model.p_detach = 0.05;
-    for (unsigned int c = 0; c < num_channels; c++) {
-        seq_model.channel_models.push_back(new ChannelModel());
-        seq_model.channel_models[c]->p_bleach = 0.05;
-        seq_model.channel_models[c]->p_dud = 0.07;
-        seq_model.channel_models[c]->bg_sig = 0.00667;
-        seq_model.channel_models[c]->mu = 1.0;
-        seq_model.channel_models[c]->sig = 0.16;
-        seq_model.channel_models[c]->stuck_dye_ratio = 0.5;
-        seq_model.channel_models[c]->p_stuck_dye_loss = 0.08;
-    }
+    seq_model.p_edman_failure = 0.20;
+    seq_model.p_detach = 0.0055;
+    seq_model.channel_models.push_back(new ChannelModel());
+    seq_model.channel_models[0]->p_bleach = 0.03;
+    seq_model.channel_models[0]->p_dud = 0.05;
+    seq_model.channel_models[0]->bg_sig = 0.0333;
+    seq_model.channel_models[0]->mu = .507;
+    seq_model.channel_models[0]->sig = 0.0382;  // sqrt(0.0507^2 - 0.0333^2)
+    seq_model.channel_models[0]->stuck_dye_ratio = 0.5;  // classifiers ignore
+    seq_model.channel_models[0]->p_stuck_dye_loss = 0.08;  // classifiers ignore
+    seq_model.channel_models[0]->fret_eff = 0.0;
+    seq_model.channel_models.push_back(new ChannelModel());
+    seq_model.channel_models[1]->p_bleach = 0.06;
+    seq_model.channel_models[1]->p_dud = 0.18;
+    seq_model.channel_models[1]->bg_sig = 0.0333;
+    seq_model.channel_models[1]->mu = .367;
+    seq_model.channel_models[1]->sig = 0.0653;  // sqrt(.0733^2 - 0.0333^2)
+    seq_model.channel_models[1]->stuck_dye_ratio = 0.5;  // classifiers ignore
+    seq_model.channel_models[1]->p_stuck_dye_loss = 0.08;  // classifiers ignore
+    seq_model.channel_models[1]->fret_eff = 0.1;
     SequencingSettings seq_settings;
     seq_settings.dist_cutoff = hmm_pruning_cutoff;
     end_time = wall_time();

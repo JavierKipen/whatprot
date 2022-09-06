@@ -37,8 +37,19 @@ double ChannelModel::pdf(double observed, int state) const {
     return (1.0 / (s * sqrt(2.0 * PI))) * exp(-offset * offset / (2.0 * s * s));
 }
 
+double ChannelModel::fret_pdf(double observed, int state) const {
+    double offset = observed - mu * (double)state * (1 - fret_eff);
+    double s = fret_sigma(state);
+    return (1.0 / (s * sqrt(2.0 * PI))) * exp(-offset * offset / (2.0 * s * s));
+}
+
 double ChannelModel::sigma(int state) const {
     return sqrt(bg_sig * bg_sig + (double)state * sig * sig);
+}
+
+double ChannelModel::fret_sigma(int state) const {
+    double adj_sig = sig * (1 - fret_eff);
+    return sqrt(bg_sig * bg_sig + (double)state * adj_sig * adj_sig);
 }
 
 double ChannelModel::relative_distance(
