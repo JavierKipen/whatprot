@@ -52,7 +52,8 @@ for case in cases:
         
     rad_array_rearranged=copy.deepcopy(rads_by_char[0]);
     for i in range(1,n_ch):
-        rad_array_rearranged=np.insert(rad_array_rearranged, [-1], rads_by_char[i], axis=1)    
+        rad_array_rearranged=np.concatenate((rad_array_rearranged,rads_by_char[i]),axis=1)
+        #rad_array_rearranged=np.insert(rad_array_rearranged, [-1], rads_by_char[i], axis=1)    
     
     t_stamps=["t_"+str(i) for i in np.arange(n_edman+1)];
     rad_stamps= ["ch_"+str(c)+"_"+t for c in range(n_ch) for t in t_stamps]
